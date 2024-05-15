@@ -17,7 +17,6 @@
 #include <unistd.h>
 #include <vector>
 
-
 static int connect(const char *host, uint16_t port);
 static int disconnect(int fd);
 static void loop(int ld, DataBase &db);
@@ -183,15 +182,40 @@ static bool process(int fd, DataBase &db) {
 }
 
 static void loop(int ld, DataBase &db) {
-    for (;;) {
-        int fd = connectClient(ld);
+    std::vector<pollfd> fds;
+    fds.reserve(POLL_SIZE);
 
-        if (fd == -1) {
-            break;
+    pollfd pfd = {ld, POLLIN, 0};
+    fds.push_back(pfd);
+
+    for (;;) {
+        int nready = poll(&fds[0], fds.size(), -1);
+        if (nready == -1) {
+            if (errno == EINTR) {
+                break;
+            }
+            fprintf(stderr, "Can't poll\n");
+            return;
         }
 
-        while (process(fd, db));
+        if (fds[0].revents & POLLIN) {
+            int fd = connectClient(ld);
+            if (fd != -1) {
+                pollfd pfd = {fd, POLLIN, 0};
+                fds.push_back(pfd);
+            }
+        }
 
-        disconnectClient(fd);
+        for (size_t i = 1; i < fds.size(); i++) {
+            if (fds[i].revents & POLLIN) {
+                if (!process(fds[i].fd, db)) {
+                    disconnectClient(fds[i].fd);
+                    fds[i] = fds.back();
+                    fds.pop_back();
+                    i--;
+                }
+            }
+        }
     }
 }
+
