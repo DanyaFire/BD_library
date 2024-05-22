@@ -19,6 +19,7 @@ class Record {
     int number() const;
     const char *author() const;
     const char *article() const;
+    std::vector<std::string> values() const;
 
     void writeTxt(FILE *fout) const;
 

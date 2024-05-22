@@ -14,10 +14,16 @@
 
 static int connect(const char *host, uint16_t port);
 static int disconnect(int fd);
-static void repl(int fd);
+//static void repl(int fd);
+static void repl(int fd, const char* filename);
 
-int main() {
+int main(int argc, char* argv[]) {
     if (!signalIgnoring()) {
+        return -1;
+    }
+
+    if (argc != 2) {
+        fprintf(stderr, "Use: %s FILENAME\n", argv[0]);
         return -1;
     }
 
@@ -28,7 +34,7 @@ int main() {
     }
 
     printQueryPatterns();
-    repl(fd);
+    repl(fd, argv[1]);
 
     if (disconnect(fd) != 0) {
         return -1;
@@ -102,16 +108,46 @@ static bool process(int fd, const char *txt) {
     return true;
 }
 
-static void repl(int fd) {
-    std::vector<char> line;
+#define LEN 128
 
-    for (;;) {
-        if (!readLine(line)) {
-            break;
+static void repl(int fd, const char* filename) {
+    FILE* file = fopen(filename, "r");
+    if (file == nullptr) {
+        fprintf(stderr, "Cannot open file %s\n", filename);
+        return;
+    }
+
+    std::vector<char> line;
+    char buf[LEN];
+
+    while (fgets(buf, LEN, file) != nullptr) {
+        line.clear();
+        for (int i = 0; buf[i] != '\0'; i++) {
+            if (buf[i] == '\n' || buf[i] == '\r') {
+                line.push_back('\0');
+                break;
+            }
+            line.push_back(buf[i]);
         }
 
         if (!process(fd, &line[0])) {
             break;
         }
     }
+
+    fclose(file);
 }
+
+// static void repl(int fd) {
+//     std::vector<char> line;
+
+//     for (;;) {
+//         if (!readLine(line)) {
+//             break;
+//         }
+
+//         if (!process(fd, &line[0])) {
+//             break;
+//         }
+//     }
+// }

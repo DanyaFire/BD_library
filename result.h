@@ -15,7 +15,7 @@ class Result {
     bool ok() const;
     size_t count() const;
     const std::vector<Record> &records() const;
-
+    std::vector<std::pair<std::string, std::string>> getFields() const;
     void writeTxt(FILE *fout) const;
 
     IOStatus writeBin(int fd) const;

@@ -48,6 +48,16 @@ const char *Record::author() const { return _author; }
 
 const char *Record::article() const { return _article; }
 
+std::vector<std::string> Record::values() const {
+    std::vector<std::string> values;
+    values.push_back(journal());
+    values.push_back(std::to_string(year()));
+    values.push_back(std::to_string(number()));
+    values.push_back(author());
+    values.push_back(article());
+    return values;
+}
+
 void printFooter(FILE *fout) {
     fprintf(fout, "| %-20s | %-4s | %-6s | %-20s | %-40s |\n", "JOURNAL", "YEAR", "NUMBER", "AUTHOR", "ARTICLE");
 }

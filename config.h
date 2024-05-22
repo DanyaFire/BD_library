@@ -19,5 +19,7 @@
 #define HOST "127.0.0.1"
 #define PORT 8000
 #define QUERY_SIZE 5
+#define BUFLEN  4096
+#define POLL_SIZE 1024
 
 #endif  

@@ -4,18 +4,8 @@
 #include "query.h"
 #include "record.h"
 #include "result.h"
+#include "server.h"
 
-#include <arpa/inet.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <inttypes.h>
-#include <poll.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <vector>
 
 static int connect(const char *host, uint16_t port);
 static int disconnect(int fd);
@@ -152,70 +142,69 @@ static void disconnectClient(int fd) {
     }
 }
 
-static bool process(int fd, DataBase &db) {
-    // 1. Read string from client
-    int n;
-
-    if (myRead(fd, &n, sizeof(n)) != IOStatus::OK) {
-        return false;
-    }
-
-    std::vector<char> cmd(n);
-
-    if (myRead(fd, &cmd[0], n) != IOStatus::OK) {
-        return false;
-    }
-	
-    printf("Body: %s\n", &cmd[0]);
-	
-    // 2. Process input data
-    Query query;
-    query.parse(&cmd[0]);
-    Result record = db.process(query);
-
-    // 3. Send result
-    if (record.writeBin(fd) != IOStatus::OK) {
-        return false;
-    }
-
-    return true;
-}
-
 static void loop(int ld, DataBase &db) {
-    std::vector<pollfd> fds;
-    fds.reserve(POLL_SIZE);
+    struct pollfd fds[QUERY_SIZE];
+    int nfds = 1;
+    struct Server* servers[2];
+    servers[0]  = new Server_HTTP();
+    servers[1] = new ServerHTTP();
 
-    pollfd pfd = {ld, POLLIN, 0};
-    fds.push_back(pfd);
+    fds[0].fd = ld;
+    fds[0].events = POLLIN;
 
     for (;;) {
-        int nready = poll(&fds[0], fds.size(), -1);
-        if (nready == -1) {
+        int rc = poll(fds, nfds, -1);
+
+        if (rc == -1) {
             if (errno == EINTR) {
                 break;
             }
+
             fprintf(stderr, "Can't poll\n");
             return;
         }
 
         if (fds[0].revents & POLLIN) {
             int fd = connectClient(ld);
-            if (fd != -1) {
-                pollfd pfd = {fd, POLLIN, 0};
-                fds.push_back(pfd);
+
+            if (fd == -1) {
+                continue;
+            }
+
+            if (nfds < QUERY_SIZE) {
+                fds[nfds].fd = fd;
+                fds[nfds].events = POLLIN;
+                nfds++;
+            } else {
+                disconnectClient(fd);
             }
         }
 
-        for (size_t i = 1; i < fds.size(); i++) {
+        for (int i = 1; i < nfds; i++) {
             if (fds[i].revents & POLLIN) {
-                if (!process(fds[i].fd, db)) {
+                if (!(*servers[0]).process(fds[i].fd, db)) {
                     disconnectClient(fds[i].fd);
-                    fds[i] = fds.back();
-                    fds.pop_back();
-                    i--;
+                    fds[i].fd = -1;
+                    fds[i].events = 0;
                 }
             }
         }
+
+        int j = 1;
+        
+        for (int i = 1; i < nfds; i++) {
+            if (fds[i].fd == -1) {
+                continue;
+            }
+
+            if (i != j) {
+                fds[j].fd = fds[i].fd;
+                fds[j].events = fds[i].events;
+            }
+
+            j++;
+        }
+
+        nfds = j;
     }
 }
-

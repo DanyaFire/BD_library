@@ -1,0 +1,1 @@
+insert journal=[Au] year=[1800] number=[3] author=[Mend] article=[Chem]

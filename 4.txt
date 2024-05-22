@@ -1,0 +1,1 @@
+delete number=[2, 5]
